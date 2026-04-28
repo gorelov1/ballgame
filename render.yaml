@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: ball-bounce-game-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGODB_URI
+        sync: false        # you set this manually in the Render dashboard
+      - key: PORT
+        value: 10000       # Render assigns its own port via $PORT; this is a fallback
+    healthCheckPath: /api/health
+    autoDeploy: true

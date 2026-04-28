@@ -1,0 +1,18 @@
+{
+  "name": "ball-bounce-game-backend",
+  "version": "1.0.0",
+  "description": "REST API backend for Ball Bounce Game",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "2.8.5",
+    "express": "4.18.2",
+    "mongodb": "6.3.0"
+  }
+}
