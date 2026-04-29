@@ -13459,6 +13459,12 @@ class GameEngine {
       this._levelManager.maxBallSpeed
     );
 
+    // Persist high score in real-time so crashes don't lose progress
+    if (currentScore > this._scoreManager.highScore) {
+      this._scoreManager.setHighScore(currentScore);
+      this._dbClient.cacheHighScore(currentScore);
+    }
+
     // Update viewport scrolling after physics steps
     this._updateViewport();
 
