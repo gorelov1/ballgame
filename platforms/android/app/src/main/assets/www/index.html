@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Ball Bounce Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #0a0a1a;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            touch-action: none;
+        }
+
+        /* ── Canvas ── */
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            cursor: crosshair;
+        }
+
+        /* ── Shared overlay base ── */
+        .screen {
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(5, 5, 20, 0.93);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .screen.active { display: flex; }
+
+        /* ── Title ── */
+        .game-title {
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            font-weight: bold;
+            color: #88ccff;
+            text-shadow: 0 0 20px #4488ff;
+            letter-spacing: 4px;
+            margin-bottom: 8px;
+        }
+        .game-subtitle {
+            font-size: clamp(0.75rem, 2vw, 1rem);
+            color: #556;
+            letter-spacing: 2px;
+            margin-bottom: 40px;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            display: block;
+            width: 260px;
+            padding: 14px 0;
+            margin: 8px 0;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(136,204,255,0.3);
+            border-radius: 6px;
+            color: #88ccff;
+            font-family: inherit;
+            font-size: 1rem;
+            letter-spacing: 2px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            user-select: none;
+        }
+        .btn:hover, .btn:focus {
+            background: rgba(136,204,255,0.12);
+            border-color: #88ccff;
+            outline: none;
+        }
+        .btn.primary {
+            background: rgba(136,204,255,0.15);
+            border-color: #88ccff;
+            color: #fff;
+            font-weight: bold;
+        }
+        .btn.danger {
+            border-color: rgba(255,80,80,0.4);
+            color: #ff8888;
+        }
+        .btn.danger:hover { background: rgba(255,80,80,0.1); border-color: #ff8888; }
+
+        /* ── Username screen ── */
+        #screen-username .prompt {
+            font-size: 1rem;
+            color: #aaa;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        #username-input {
+            width: 260px;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(136,204,255,0.4);
+            border-radius: 6px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            text-align: center;
+            margin-bottom: 16px;
+            outline: none;
+        }
+        #username-input:focus { border-color: #88ccff; }
+        #username-error {
+            color: #ff8888;
+            font-size: 0.85rem;
+            min-height: 20px;
+            margin-bottom: 8px;
+        }
+
+        /* ── Leaderboard ── */
+        #leaderboard-table {
+            width: min(480px, 90vw);
+            border-collapse: collapse;
+            margin: 16px 0 24px;
+        }
+        #leaderboard-table th {
+            color: #88ccff;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            padding: 6px 12px;
+            border-bottom: 1px solid rgba(136,204,255,0.2);
+            text-align: left;
+        }
+        #leaderboard-table td {
+            padding: 8px 12px;
+            font-size: 0.95rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        #leaderboard-table tr:first-child td { color: #ffd700; }
+        #leaderboard-table tr:nth-child(2) td { color: #c0c0c0; }
+        #leaderboard-table tr:nth-child(3) td { color: #cd7f32; }
+        .rank-col { width: 40px; text-align: center; color: #556; }
+        .score-col { text-align: right; color: #88ccff; }
+        #leaderboard-loading { color: #556; font-size: 0.9rem; margin: 20px 0; }
+
+        /* ── About ── */
+        #screen-about .about-text {
+            width: min(480px, 85vw);
+            text-align: center;
+            line-height: 1.8;
+            color: #aaa;
+            font-size: 0.95rem;
+            margin-bottom: 28px;
+        }
+        #screen-about .about-text strong { color: #88ccff; }
+
+        /* ── Pause overlay ── */
+        #screen-pause .pause-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 6px;
+            margin-bottom: 40px;
+        }
+
+        /* ── Section heading ── */
+        .section-title {
+            font-size: 1.2rem;
+            letter-spacing: 4px;
+            color: #88ccff;
+            margin-bottom: 20px;
+        }
+
+        /* ── Current user badge ── */
+        #current-user-badge {
+            position: absolute;
+            top: 12px; right: 16px;
+            font-size: 0.8rem;
+            color: #556;
+            letter-spacing: 1px;
+            z-index: 11;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Current user indicator (visible during gameplay) -->
+    <div id="current-user-badge"></div>
+
+    <!-- ── USERNAME ENTRY SCREEN ── -->
+    <div id="screen-username" class="screen active">
+        <div class="game-title">BALL BOUNCE</div>
+        <div class="game-subtitle">DRAW · BOUNCE · ASCEND</div>
+        <p class="prompt">Enter your name to track your scores<br>on the global leaderboard.</p>
+        <input id="username-input" type="text" maxlength="32" placeholder="Your name" autocomplete="off" spellcheck="false" />
+        <div id="username-error"></div>
+        <button class="btn primary" id="btn-username-confirm">PLAY</button>
+    </div>
+
+    <!-- ── MAIN MENU SCREEN ── -->
+    <div id="screen-menu" class="screen">
+        <div class="game-title">BALL BOUNCE</div>
+        <div class="game-subtitle">DRAW · BOUNCE · ASCEND</div>
+        <button class="btn primary" id="btn-play">▶  PLAY</button>
+        <button class="btn" id="btn-highscores">🏆  HIGH SCORES</button>
+        <button class="btn" id="btn-about">ℹ  ABOUT</button>
+        <button class="btn danger" id="btn-change-user" style="margin-top:24px;font-size:0.85rem;">CHANGE PLAYER</button>
+    </div>
+
+    <!-- ── HIGH SCORES SCREEN ── -->
+    <div id="screen-highscores" class="screen">
+        <div class="section-title">🏆 LEADERBOARD</div>
+        <div id="leaderboard-loading">Loading…</div>
+        <table id="leaderboard-table" style="display:none">
+            <thead>
+                <tr>
+                    <th class="rank-col">#</th>
+                    <th>PLAYER</th>
+                    <th class="score-col">SCORE</th>
+                    <th class="score-col">HEIGHT</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard-body"></tbody>
+        </table>
+        <button class="btn" id="btn-highscores-back">← BACK</button>
+    </div>
+
+    <!-- ── ABOUT SCREEN ── -->
+    <div id="screen-about" class="screen">
+        <div class="section-title">ℹ ABOUT</div>
+        <div class="about-text">
+            <strong>Ball Bounce</strong> is an endless vertical scroller.<br><br>
+            A ball falls constantly under gravity.<br>
+            <strong>Draw lines</strong> with your mouse (or finger) to create<br>
+            temporary platforms that bounce the ball upward.<br><br>
+            Collect <strong style="color:#ffd700">✦ gems</strong> to replenish your drawing fuel.<br>
+            The higher you go, the higher your score.<br><br>
+            If the ball falls off the bottom — it's <strong style="color:#ff8888">game over</strong>.<br><br>
+            <span style="color:#556;font-size:0.85rem">Built with JavaScript · planck.js · MongoDB</span>
+        </div>
+        <button class="btn" id="btn-about-back">← BACK</button>
+    </div>
+
+    <!-- ── PAUSE SCREEN ── -->
+    <div id="screen-pause" class="screen">
+        <div class="pause-title">PAUSED</div>
+        <button class="btn primary" id="btn-resume">▶  RESUME</button>
+        <button class="btn" id="btn-pause-highscores">🏆  HIGH SCORES</button>
+        <button class="btn danger" id="btn-quit">✕  QUIT TO MENU</button>
+    </div>
+
+    <!-- Backend URL — Railway deployment -->
+    <script>window.BACKEND_URL = 'https://ball-bounce-game-backend-production.up.railway.app';</script>
+
+    <!-- Bundled game -->
+    <script src="js/bundle.js"></script>
+    <!-- Mouse-to-touch shim -->
+    <script src="js/mouse-shim.js"></script>
+    <!-- Menu + bootstrap logic -->
+    <script src="js/desktop-main.js"></script>
+</body>
+</html>

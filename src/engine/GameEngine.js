@@ -85,11 +85,13 @@ class GameEngine {
     this._sessionActive = false;
     this._rafHandle = null;
     this._lastTimestamp = null;
+    this._currentTimestamp = 0;
     this._accumulator = 0;
 
     // --- Viewport ---
     this._viewportOffset = 0;
     this._lastHeightMilestone = 0;
+    this._maxHeightReached = 0; // tracks the highest point the ball has reached (in pixels above start)
 
     // --- Ball handle ---
     this._ballHandle = null;
@@ -137,7 +139,8 @@ class GameEngine {
     // downward so game-over only triggers when it truly hits the floor.
     this._physicsEngine._outOfBoundsY = this._canvasHeight * 1.5;
 
-    // Enable touch input
+    // Enable touch input, set max platform length to 25% of canvas width
+    this._inputHandler.setMaxLength(this._canvasWidth * 0.25);
     this._inputHandler.enable();
 
     this._sessionActive = true;
@@ -200,6 +203,7 @@ class GameEngine {
     // Reset viewport
     this._viewportOffset = 0;
     this._lastHeightMilestone = 0;
+    this._maxHeightReached = 0;
     this._renderer.setViewportOffset(0);
     this._inputHandler.setViewportOffset(0);
 
@@ -250,6 +254,9 @@ class GameEngine {
 
     // Update viewport scrolling after physics steps
     this._updateViewport();
+
+    // Store current rAF timestamp for platform creation timestamping
+    this._currentTimestamp = timestamp;
 
     // Update platform lifetimes and remove expired ones
     this._updatePlatforms(timestamp);
@@ -312,7 +319,16 @@ class GameEngine {
       this._viewportOffset -= delta;
       this._renderer.setViewportOffset(this._viewportOffset);
       this._inputHandler.setViewportOffset(this._viewportOffset);
-      this._scoreManager.onHeightGained(delta);
+
+      // Height score: only increase when ball reaches a new maximum height.
+      // In y-down coords, higher up = smaller Y. We track height as pixels
+      // above the spawn point (y=50). A new max means ballWorldY < previous min.
+      const heightAboveStart = Math.max(0, 50 - ballWorldY);
+      if (heightAboveStart > this._maxHeightReached) {
+        const newHeight = heightAboveStart - this._maxHeightReached;
+        this._maxHeightReached = heightAboveStart;
+        this._scoreManager.onHeightGained(newHeight);
+      }
 
       // Gem spawn milestones
       const currentHeight = this._scoreManager.currentHeight;
@@ -327,8 +343,6 @@ class GameEngine {
       // Ball is below the lower zone — scroll down to follow it
       const delta = ballScreenY - lowerZone;
       const newOffset = this._viewportOffset + delta;
-
-      // Never scroll below the world origin (don't show below y=0)
       this._viewportOffset = Math.min(newOffset, 0);
       this._renderer.setViewportOffset(this._viewportOffset);
       this._inputHandler.setViewportOffset(this._viewportOffset);
@@ -399,8 +413,9 @@ class GameEngine {
     // Create the platform body using the current level's lifetime
     const handle = this._physicsEngine.createPlatform(start, end, this._levelManager.platformLifetimeMs);
 
-    // Tag with creation timestamp for lifetime tracking
-    handle._createdAt = Date.now();
+    // Tag with the current rAF timestamp for lifetime tracking
+    // (must match the timestamp used in _updatePlatforms)
+    handle._createdAt = this._currentTimestamp;
 
     // Register in active platforms map
     this._activePlatforms.set(handle.id, handle);

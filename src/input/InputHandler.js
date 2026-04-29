@@ -25,6 +25,9 @@ class InputHandler {
     /** @type {number} World-space Y offset added to screen coordinates */
     this._viewportOffset = 0;
 
+    /** @type {number} Maximum platform length in pixels (dynamic, defaults to constant) */
+    this._maxPlatformPx = MAX_PLATFORM_PX;
+
     /** @type {{ x: number, y: number } | null} */
     this._dragStart = null;
 
@@ -64,6 +67,15 @@ class InputHandler {
    */
   setViewportOffset(yOffset) {
     this._viewportOffset = yOffset;
+  }
+
+  /**
+   * Update the maximum platform length in pixels.
+   * Called by GameEngine when the canvas size is known.
+   * @param {number} px
+   */
+  setMaxLength(px) {
+    this._maxPlatformPx = Math.max(MIN_PLATFORM_PX, px);
   }
 
   // ---------------------------------------------------------------------------
@@ -154,10 +166,23 @@ class InputHandler {
 
     this._dragEnd = this._toWorldSpace(touch);
 
+    // Clamp the preview line to max length so the visual matches what will be created
+    const dx = this._dragEnd.x - this._dragStart.x;
+    const dy = this._dragEnd.y - this._dragStart.y;
+    const rawLength = Math.sqrt(dx * dx + dy * dy);
+    let previewEnd = this._dragEnd;
+    if (rawLength > this._maxPlatformPx && rawLength > 0) {
+      const scale = this._maxPlatformPx / rawLength;
+      previewEnd = {
+        x: this._dragStart.x + dx * scale,
+        y: this._dragStart.y + dy * scale,
+      };
+    }
+
     // Emit a preview so the Renderer can draw the in-progress line
     this.emit('previewUpdate', {
       start: { ...this._dragStart },
-      end:   { ...this._dragEnd  },
+      end:   previewEnd,
     });
   }
 
@@ -189,8 +214,8 @@ class InputHandler {
     // Guard: no fuel
     if (this._fuelManager.currentFuel === 0) return;
 
-    // Clamp the gesture length to [MIN_PLATFORM_PX, MAX_PLATFORM_PX]
-    const clampedLength = Math.max(MIN_PLATFORM_PX, Math.min(MAX_PLATFORM_PX, rawLength));
+    // Clamp the gesture length to [MIN_PLATFORM_PX, _maxPlatformPx]
+    const clampedLength = Math.max(MIN_PLATFORM_PX, Math.min(this._maxPlatformPx, rawLength));
 
     // Scale the end point along the gesture direction to match the clamped length
     const scale = clampedLength / rawLength;

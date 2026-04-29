@@ -13292,11 +13292,13 @@ class GameEngine {
     this._sessionActive = false;
     this._rafHandle = null;
     this._lastTimestamp = null;
+    this._currentTimestamp = 0;
     this._accumulator = 0;
 
     // --- Viewport ---
     this._viewportOffset = 0;
     this._lastHeightMilestone = 0;
+    this._maxHeightReached = 0; // tracks the highest point the ball has reached (in pixels above start)
 
     // --- Ball handle ---
     this._ballHandle = null;
@@ -13344,7 +13346,8 @@ class GameEngine {
     // downward so game-over only triggers when it truly hits the floor.
     this._physicsEngine._outOfBoundsY = this._canvasHeight * 1.5;
 
-    // Enable touch input
+    // Enable touch input, set max platform length to 25% of canvas width
+    this._inputHandler.setMaxLength(this._canvasWidth * 0.25);
     this._inputHandler.enable();
 
     this._sessionActive = true;
@@ -13407,6 +13410,7 @@ class GameEngine {
     // Reset viewport
     this._viewportOffset = 0;
     this._lastHeightMilestone = 0;
+    this._maxHeightReached = 0;
     this._renderer.setViewportOffset(0);
     this._inputHandler.setViewportOffset(0);
 
@@ -13457,6 +13461,9 @@ class GameEngine {
 
     // Update viewport scrolling after physics steps
     this._updateViewport();
+
+    // Store current rAF timestamp for platform creation timestamping
+    this._currentTimestamp = timestamp;
 
     // Update platform lifetimes and remove expired ones
     this._updatePlatforms(timestamp);
@@ -13519,7 +13526,16 @@ class GameEngine {
       this._viewportOffset -= delta;
       this._renderer.setViewportOffset(this._viewportOffset);
       this._inputHandler.setViewportOffset(this._viewportOffset);
-      this._scoreManager.onHeightGained(delta);
+
+      // Height score: only increase when ball reaches a new maximum height.
+      // In y-down coords, higher up = smaller Y. We track height as pixels
+      // above the spawn point (y=50). A new max means ballWorldY < previous min.
+      const heightAboveStart = Math.max(0, 50 - ballWorldY);
+      if (heightAboveStart > this._maxHeightReached) {
+        const newHeight = heightAboveStart - this._maxHeightReached;
+        this._maxHeightReached = heightAboveStart;
+        this._scoreManager.onHeightGained(newHeight);
+      }
 
       // Gem spawn milestones
       const currentHeight = this._scoreManager.currentHeight;
@@ -13534,8 +13550,6 @@ class GameEngine {
       // Ball is below the lower zone — scroll down to follow it
       const delta = ballScreenY - lowerZone;
       const newOffset = this._viewportOffset + delta;
-
-      // Never scroll below the world origin (don't show below y=0)
       this._viewportOffset = Math.min(newOffset, 0);
       this._renderer.setViewportOffset(this._viewportOffset);
       this._inputHandler.setViewportOffset(this._viewportOffset);
@@ -13606,8 +13620,9 @@ class GameEngine {
     // Create the platform body using the current level's lifetime
     const handle = this._physicsEngine.createPlatform(start, end, this._levelManager.platformLifetimeMs);
 
-    // Tag with creation timestamp for lifetime tracking
-    handle._createdAt = Date.now();
+    // Tag with the current rAF timestamp for lifetime tracking
+    // (must match the timestamp used in _updatePlatforms)
+    handle._createdAt = this._currentTimestamp;
 
     // Register in active platforms map
     this._activePlatforms.set(handle.id, handle);
@@ -13917,6 +13932,9 @@ class InputHandler {
     /** @type {number} World-space Y offset added to screen coordinates */
     this._viewportOffset = 0;
 
+    /** @type {number} Maximum platform length in pixels (dynamic, defaults to constant) */
+    this._maxPlatformPx = MAX_PLATFORM_PX;
+
     /** @type {{ x: number, y: number } | null} */
     this._dragStart = null;
 
@@ -13956,6 +13974,15 @@ class InputHandler {
    */
   setViewportOffset(yOffset) {
     this._viewportOffset = yOffset;
+  }
+
+  /**
+   * Update the maximum platform length in pixels.
+   * Called by GameEngine when the canvas size is known.
+   * @param {number} px
+   */
+  setMaxLength(px) {
+    this._maxPlatformPx = Math.max(MIN_PLATFORM_PX, px);
   }
 
   // ---------------------------------------------------------------------------
@@ -14046,10 +14073,23 @@ class InputHandler {
 
     this._dragEnd = this._toWorldSpace(touch);
 
+    // Clamp the preview line to max length so the visual matches what will be created
+    const dx = this._dragEnd.x - this._dragStart.x;
+    const dy = this._dragEnd.y - this._dragStart.y;
+    const rawLength = Math.sqrt(dx * dx + dy * dy);
+    let previewEnd = this._dragEnd;
+    if (rawLength > this._maxPlatformPx && rawLength > 0) {
+      const scale = this._maxPlatformPx / rawLength;
+      previewEnd = {
+        x: this._dragStart.x + dx * scale,
+        y: this._dragStart.y + dy * scale,
+      };
+    }
+
     // Emit a preview so the Renderer can draw the in-progress line
     this.emit('previewUpdate', {
       start: { ...this._dragStart },
-      end:   { ...this._dragEnd  },
+      end:   previewEnd,
     });
   }
 
@@ -14081,8 +14121,8 @@ class InputHandler {
     // Guard: no fuel
     if (this._fuelManager.currentFuel === 0) return;
 
-    // Clamp the gesture length to [MIN_PLATFORM_PX, MAX_PLATFORM_PX]
-    const clampedLength = Math.max(MIN_PLATFORM_PX, Math.min(MAX_PLATFORM_PX, rawLength));
+    // Clamp the gesture length to [MIN_PLATFORM_PX, _maxPlatformPx]
+    const clampedLength = Math.max(MIN_PLATFORM_PX, Math.min(this._maxPlatformPx, rawLength));
 
     // Scale the end point along the gesture direction to match the clamped length
     const scale = clampedLength / rawLength;
@@ -14885,8 +14925,8 @@ class Renderer {
     // Score
     ctx.fillText(`SCORE  ${Math.floor(score)}`, PAD, PAD);
 
-    // Height
-    ctx.fillText(`HEIGHT ${Math.floor(height)} px`, PAD, PAD + LINE_H);
+    // Height (convert pixels → metres using PPM=60)
+    ctx.fillText(`HEIGHT ${(height / 60).toFixed(1)} m`, PAD, PAD + LINE_H);
 
     // High score (top-right)
     ctx.textAlign = 'right';

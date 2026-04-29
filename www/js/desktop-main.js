@@ -9,7 +9,7 @@
 
   // Backend URL — change this to your deployed Render/Railway URL when hosted.
   // Leave as localhost for local development.
-  var BACKEND_URL = window.BACKEND_URL || 'http://localhost:3000';
+  var BACKEND_URL = window.BACKEND_URL || 'https://ball-bounce-game-backend-production.up.railway.app';
   var STORAGE_KEY_USERNAME = 'bbg_username';
   var STORAGE_KEY_PLAYER_ID = 'bbg_player_id';
 
@@ -185,18 +185,21 @@
   // ---------------------------------------------------------------------------
   function initPauseScreen() {
     document.getElementById('btn-resume').addEventListener('click', resumeGame);
-    document.getElementById('btn-pause-highscores').addEventListener('click', function () {
-      showHighScores('screen-pause');
-    });
     document.getElementById('btn-quit').addEventListener('click', function () {
       quitToMenu();
     });
+  }
+
+  function showSettingsButton(visible) {
+    var btn = document.getElementById('btn-settings');
+    btn.style.display = visible ? 'flex' : 'none';
   }
 
   function pauseGame() {
     if (!isPlaying || isPaused) return;
     isPaused = true;
     if (engine) engine.pause();
+    showSettingsButton(false);
     showScreen('screen-pause');
   }
 
@@ -204,12 +207,14 @@
     if (!isPaused) return;
     isPaused = false;
     hideAllScreens();
+    showSettingsButton(true);
     if (engine) engine.resume();
   }
 
   function quitToMenu() {
     isPaused = false;
     isPlaying = false;
+    showSettingsButton(false);
     if (engine) {
       engine.pause();
       engine = null;
@@ -232,6 +237,7 @@
     hideAllScreens();
     isPlaying = true;
     isPaused  = false;
+    showSettingsButton(true);
 
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -256,12 +262,23 @@
     // GameEngine already shows its own game-over overlay; we hook into restart
     var origRestart = engine.restart.bind(engine);
     engine.restart = function () {
+      showSettingsButton(true);
       origRestart();
     };
 
     engine.start().catch(function (err) {
       console.error('GameEngine.start() error:', err);
     });
+
+    // Hide settings button when game over (engine stops itself)
+    // We poll sessionActive to detect game-over state
+    var gameOverCheck = setInterval(function () {
+      if (!engine) { clearInterval(gameOverCheck); return; }
+      if (engine._sessionActive === false && isPlaying && !isPaused) {
+        showSettingsButton(false);
+        clearInterval(gameOverCheck);
+      }
+    }, 200);
   }
 
   // ---------------------------------------------------------------------------
@@ -291,6 +308,12 @@
     initUsernameScreen();
     initMainMenu();
     initPauseScreen();
+
+    // Settings button
+    document.getElementById('btn-settings').addEventListener('click', function () {
+      if (isPlaying && !isPaused) pauseGame();
+      else if (isPaused) resumeGame();
+    });
 
     // Check if we already have a stored username
     var storedName = localStorage.getItem(STORAGE_KEY_USERNAME);

@@ -345,8 +345,8 @@ class Renderer {
     // Score
     ctx.fillText(`SCORE  ${Math.floor(score)}`, PAD, PAD);
 
-    // Height
-    ctx.fillText(`HEIGHT ${Math.floor(height)} px`, PAD, PAD + LINE_H);
+    // Height (convert pixels → metres using PPM=60)
+    ctx.fillText(`HEIGHT ${(height / 60).toFixed(1)} m`, PAD, PAD + LINE_H);
 
     // High score (top-right)
     ctx.textAlign = 'right';

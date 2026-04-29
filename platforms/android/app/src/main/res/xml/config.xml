@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.example.ballbouncegame" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Ball Bounce Game</name>
+    <description>
+        A JavaScript-based Android mobile game where the player draws temporary
+        platforms to bounce a falling ball upward, collecting gems to replenish fuel.
+    </description>
+    <author email="dev@example.com" href="http://example.com">
+        Ball Bounce Game Developer
+    </author>
+    <content src="index.html" />
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-intent href="tel:*" />
+    <allow-intent href="sms:*" />
+    <allow-intent href="mailto:*" />
+    <allow-intent href="geo:*" />
+    <allow-intent href="market:*" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <preference name="loglevel" value="DEBUG" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="android-windowSoftInputMode" value="adjustResize" />
+    <preference name="Orientation" value="portrait" />
+    <preference name="Fullscreen" value="true" />
+    <preference name="BackgroundColor" value="#000000" />
+    <preference name="android-minSdkVersion" value="26" />
+    <preference name="android-targetSdkVersion" value="34" />
+</widget>
