@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.example.ballbouncegame"
+<widget id="com.mobotan.ballbouncegame"
         version="1.0.0"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:cdv="http://cordova.apache.org/ns/1.0"
@@ -10,7 +10,7 @@
         A JavaScript-based Android mobile game where the player draws temporary
         platforms to bounce a falling ball upward, collecting gems to replenish fuel.
     </description>
-    <author email="dev@example.com" href="http://example.com">
+    <author email="mobotan@gmail.com" href="https://github.com/gorelov1/ballgame/">
         Ball Bounce Game Developer
     </author>
 
@@ -32,6 +32,7 @@
         <preference name="android-targetSdkVersion" value="34" />
         <!-- INTERNET permission required for Railway backend connectivity -->
         <uses-permission android:name="android.permission.INTERNET" />
+        <icon src="www/icon.png" width="57" height="57" />
     </platform>
 
     <preference name="DisallowOverscroll" value="true" />
@@ -39,5 +40,7 @@
     <preference name="Orientation" value="portrait" />
     <preference name="Fullscreen" value="true" />
     <preference name="BackgroundColor" value="#000000" />
+    
+    
 
 </widget>
