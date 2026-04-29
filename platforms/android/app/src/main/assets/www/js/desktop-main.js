@@ -185,18 +185,21 @@
   // ---------------------------------------------------------------------------
   function initPauseScreen() {
     document.getElementById('btn-resume').addEventListener('click', resumeGame);
-    document.getElementById('btn-pause-highscores').addEventListener('click', function () {
-      showHighScores('screen-pause');
-    });
     document.getElementById('btn-quit').addEventListener('click', function () {
       quitToMenu();
     });
+  }
+
+  function showSettingsButton(visible) {
+    var btn = document.getElementById('btn-settings');
+    btn.style.display = visible ? 'flex' : 'none';
   }
 
   function pauseGame() {
     if (!isPlaying || isPaused) return;
     isPaused = true;
     if (engine) engine.pause();
+    showSettingsButton(false);
     showScreen('screen-pause');
   }
 
@@ -204,12 +207,14 @@
     if (!isPaused) return;
     isPaused = false;
     hideAllScreens();
+    showSettingsButton(true);
     if (engine) engine.resume();
   }
 
   function quitToMenu() {
     isPaused = false;
     isPlaying = false;
+    showSettingsButton(false);
     if (engine) {
       engine.pause();
       engine = null;
@@ -232,6 +237,7 @@
     hideAllScreens();
     isPlaying = true;
     isPaused  = false;
+    showSettingsButton(true);
 
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -252,10 +258,20 @@
 
     engine = new window.GameEngine(canvas, config);
 
+    // Wire game-over callback — show HTML overlay instead of canvas text
+    engine.onGameOver = function (finalScore, highScore) {
+      isPlaying = false;
+      showSettingsButton(false);
+      document.getElementById('gameover-score').textContent = 'SCORE  ' + Math.floor(finalScore);
+      document.getElementById('gameover-best').textContent  = 'BEST   ' + Math.floor(highScore);
+      showScreen('screen-gameover');
+    };
+
     // When the game ends (ball out of bounds), show menu after a short delay
     // GameEngine already shows its own game-over overlay; we hook into restart
     var origRestart = engine.restart.bind(engine);
     engine.restart = function () {
+      showSettingsButton(true);
       origRestart();
     };
 
@@ -291,6 +307,32 @@
     initUsernameScreen();
     initMainMenu();
     initPauseScreen();
+
+    // Settings button
+    document.getElementById('btn-settings').addEventListener('click', function () {
+      if (isPlaying && !isPaused) pauseGame();
+      else if (isPaused) resumeGame();
+    });
+
+    // Game-over screen buttons
+    document.getElementById('btn-gameover-restart').addEventListener('click', function () {
+      hideAllScreens();
+      if (engine) {
+        isPlaying = true;
+        showSettingsButton(true);
+        engine.restart();
+      } else {
+        startGame();
+      }
+    });
+    document.getElementById('btn-gameover-menu').addEventListener('click', function () {
+      if (engine) {
+        try { engine.pause(); } catch (e) {}
+        engine = null;
+      }
+      isPlaying = false;
+      showScreen('screen-menu');
+    });
 
     // Check if we already have a stored username
     var storedName = localStorage.getItem(STORAGE_KEY_USERNAME);

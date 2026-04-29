@@ -139,8 +139,8 @@ class GameEngine {
     // downward so game-over only triggers when it truly hits the floor.
     this._physicsEngine._outOfBoundsY = this._canvasHeight * 1.5;
 
-    // Enable touch input, set max platform length to 25% of canvas width
-    this._inputHandler.setMaxLength(this._canvasWidth * 0.25);
+    // Enable touch input, set max platform length to 50% of canvas width
+    this._inputHandler.setMaxLength(this._canvasWidth * 0.5);
     this._inputHandler.enable();
 
     this._sessionActive = true;
@@ -411,8 +411,22 @@ class GameEngine {
    * @param {{ x: number, y: number }} end
    */
   _onPlatformRequest(start, end) {
+    // Compute actual line length in pixels
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthPx = Math.sqrt(dx * dx + dy * dy);
+
+    // Fuel cost scales linearly with length:
+    //   minimum line (MIN_PLATFORM_PX = 50px)  → PLATFORM_FUEL_COST (base, e.g. 5)
+    //   maximum line (25% of canvas width)      → PLATFORM_FUEL_COST * maxMultiplier
+    // We use a multiplier of up to 4× so a max-length line costs 4× the base.
+    const minLen = 50; // MIN_PLATFORM_PX
+    const maxLen = this._canvasWidth * 0.5;
+    const lengthRatio = Math.max(0, Math.min(1, (lengthPx - minLen) / (maxLen - minLen)));
+    const fuelCost = Math.round(PLATFORM_FUEL_COST * (1 + lengthRatio * 1)); // 1× to 2× (5–10)
+
     // Deduct fuel; bail out if insufficient
-    if (!this._fuelManager.deduct(PLATFORM_FUEL_COST)) {
+    if (!this._fuelManager.deduct(fuelCost)) {
       return;
     }
 
@@ -420,7 +434,6 @@ class GameEngine {
     const handle = this._physicsEngine.createPlatform(start, end, this._levelManager.platformLifetimeMs);
 
     // Tag with the current rAF timestamp for lifetime tracking
-    // (must match the timestamp used in _updatePlatforms)
     handle._createdAt = this._currentTimestamp;
 
     // Register in active platforms map
@@ -499,16 +512,13 @@ class GameEngine {
     };
     this._dbClient.saveSession(record);
 
-    // Show game-over overlay
+    // Show game-over overlay (HTML screen handled by desktop-main.js)
     this._renderer.showGameOver(finalScore, this._scoreManager.highScore);
 
-    // Wire tap-to-restart: one-time touchend listener on the canvas
-    const canvas = this._inputHandler._canvas;
-    const onTap = () => {
-      canvas.removeEventListener('touchend', onTap);
-      this.restart();
-    };
-    canvas.addEventListener('touchend', onTap);
+    // Notify external handler if set (desktop-main.js wires this up)
+    if (typeof this.onGameOver === 'function') {
+      this.onGameOver(finalScore, this._scoreManager.highScore);
+    }
 
     // Render one final frame
     this._renderer.draw(0);

@@ -12827,8 +12827,8 @@ const MIN_PLATFORM_PX = 50;
 /** Maximum platform length in pixels */
 const MAX_PLATFORM_PX = 400;
 
-/** Fuel units deducted per platform drawn */
-const PLATFORM_FUEL_COST = 10;
+/** Fuel units deducted per platform drawn (base cost for minimum-length line) */
+const PLATFORM_FUEL_COST = 5;
 
 /** Maximum fuel reserve cap */
 const MAX_FUEL = 200;
@@ -13292,11 +13292,13 @@ class GameEngine {
     this._sessionActive = false;
     this._rafHandle = null;
     this._lastTimestamp = null;
+    this._currentTimestamp = 0;
     this._accumulator = 0;
 
     // --- Viewport ---
     this._viewportOffset = 0;
     this._lastHeightMilestone = 0;
+    this._maxHeightReached = 0; // tracks the highest point the ball has reached (in pixels above start)
 
     // --- Ball handle ---
     this._ballHandle = null;
@@ -13344,7 +13346,8 @@ class GameEngine {
     // downward so game-over only triggers when it truly hits the floor.
     this._physicsEngine._outOfBoundsY = this._canvasHeight * 1.5;
 
-    // Enable touch input
+    // Enable touch input, set max platform length to 50% of canvas width
+    this._inputHandler.setMaxLength(this._canvasWidth * 0.5);
     this._inputHandler.enable();
 
     this._sessionActive = true;
@@ -13407,6 +13410,7 @@ class GameEngine {
     // Reset viewport
     this._viewportOffset = 0;
     this._lastHeightMilestone = 0;
+    this._maxHeightReached = 0;
     this._renderer.setViewportOffset(0);
     this._inputHandler.setViewportOffset(0);
 
@@ -13455,8 +13459,17 @@ class GameEngine {
       this._levelManager.maxBallSpeed
     );
 
+    // Persist high score in real-time so crashes don't lose progress
+    if (currentScore > this._scoreManager.highScore) {
+      this._scoreManager.setHighScore(currentScore);
+      this._dbClient.cacheHighScore(currentScore);
+    }
+
     // Update viewport scrolling after physics steps
     this._updateViewport();
+
+    // Store current rAF timestamp for platform creation timestamping
+    this._currentTimestamp = timestamp;
 
     // Update platform lifetimes and remove expired ones
     this._updatePlatforms(timestamp);
@@ -13519,7 +13532,16 @@ class GameEngine {
       this._viewportOffset -= delta;
       this._renderer.setViewportOffset(this._viewportOffset);
       this._inputHandler.setViewportOffset(this._viewportOffset);
-      this._scoreManager.onHeightGained(delta);
+
+      // Height score: only increase when ball reaches a new maximum height.
+      // In y-down coords, higher up = smaller Y. We track height as pixels
+      // above the spawn point (y=50). A new max means ballWorldY < previous min.
+      const heightAboveStart = Math.max(0, 50 - ballWorldY);
+      if (heightAboveStart > this._maxHeightReached) {
+        const newHeight = heightAboveStart - this._maxHeightReached;
+        this._maxHeightReached = heightAboveStart;
+        this._scoreManager.onHeightGained(newHeight);
+      }
 
       // Gem spawn milestones
       const currentHeight = this._scoreManager.currentHeight;
@@ -13534,8 +13556,6 @@ class GameEngine {
       // Ball is below the lower zone — scroll down to follow it
       const delta = ballScreenY - lowerZone;
       const newOffset = this._viewportOffset + delta;
-
-      // Never scroll below the world origin (don't show below y=0)
       this._viewportOffset = Math.min(newOffset, 0);
       this._renderer.setViewportOffset(this._viewportOffset);
       this._inputHandler.setViewportOffset(this._viewportOffset);
@@ -13598,16 +13618,30 @@ class GameEngine {
    * @param {{ x: number, y: number }} end
    */
   _onPlatformRequest(start, end) {
+    // Compute actual line length in pixels
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthPx = Math.sqrt(dx * dx + dy * dy);
+
+    // Fuel cost scales linearly with length:
+    //   minimum line (MIN_PLATFORM_PX = 50px)  → PLATFORM_FUEL_COST (base, e.g. 5)
+    //   maximum line (25% of canvas width)      → PLATFORM_FUEL_COST * maxMultiplier
+    // We use a multiplier of up to 4× so a max-length line costs 4× the base.
+    const minLen = 50; // MIN_PLATFORM_PX
+    const maxLen = this._canvasWidth * 0.5;
+    const lengthRatio = Math.max(0, Math.min(1, (lengthPx - minLen) / (maxLen - minLen)));
+    const fuelCost = Math.round(PLATFORM_FUEL_COST * (1 + lengthRatio * 3)); // 1× to 4×
+
     // Deduct fuel; bail out if insufficient
-    if (!this._fuelManager.deduct(PLATFORM_FUEL_COST)) {
+    if (!this._fuelManager.deduct(fuelCost)) {
       return;
     }
 
     // Create the platform body using the current level's lifetime
     const handle = this._physicsEngine.createPlatform(start, end, this._levelManager.platformLifetimeMs);
 
-    // Tag with creation timestamp for lifetime tracking
-    handle._createdAt = Date.now();
+    // Tag with the current rAF timestamp for lifetime tracking
+    handle._createdAt = this._currentTimestamp;
 
     // Register in active platforms map
     this._activePlatforms.set(handle.id, handle);
@@ -13685,16 +13719,13 @@ class GameEngine {
     };
     this._dbClient.saveSession(record);
 
-    // Show game-over overlay
+    // Show game-over overlay (HTML screen handled by desktop-main.js)
     this._renderer.showGameOver(finalScore, this._scoreManager.highScore);
 
-    // Wire tap-to-restart: one-time touchend listener on the canvas
-    const canvas = this._inputHandler._canvas;
-    const onTap = () => {
-      canvas.removeEventListener('touchend', onTap);
-      this.restart();
-    };
-    canvas.addEventListener('touchend', onTap);
+    // Notify external handler if set (desktop-main.js wires this up)
+    if (typeof this.onGameOver === 'function') {
+      this.onGameOver(finalScore, this._scoreManager.highScore);
+    }
 
     // Render one final frame
     this._renderer.draw(0);
@@ -13917,6 +13948,9 @@ class InputHandler {
     /** @type {number} World-space Y offset added to screen coordinates */
     this._viewportOffset = 0;
 
+    /** @type {number} Maximum platform length in pixels (dynamic, defaults to constant) */
+    this._maxPlatformPx = MAX_PLATFORM_PX;
+
     /** @type {{ x: number, y: number } | null} */
     this._dragStart = null;
 
@@ -13956,6 +13990,15 @@ class InputHandler {
    */
   setViewportOffset(yOffset) {
     this._viewportOffset = yOffset;
+  }
+
+  /**
+   * Update the maximum platform length in pixels.
+   * Called by GameEngine when the canvas size is known.
+   * @param {number} px
+   */
+  setMaxLength(px) {
+    this._maxPlatformPx = Math.max(MIN_PLATFORM_PX, px);
   }
 
   // ---------------------------------------------------------------------------
@@ -14046,10 +14089,23 @@ class InputHandler {
 
     this._dragEnd = this._toWorldSpace(touch);
 
+    // Clamp the preview line to max length so the visual matches what will be created
+    const dx = this._dragEnd.x - this._dragStart.x;
+    const dy = this._dragEnd.y - this._dragStart.y;
+    const rawLength = Math.sqrt(dx * dx + dy * dy);
+    let previewEnd = this._dragEnd;
+    if (rawLength > this._maxPlatformPx && rawLength > 0) {
+      const scale = this._maxPlatformPx / rawLength;
+      previewEnd = {
+        x: this._dragStart.x + dx * scale,
+        y: this._dragStart.y + dy * scale,
+      };
+    }
+
     // Emit a preview so the Renderer can draw the in-progress line
     this.emit('previewUpdate', {
       start: { ...this._dragStart },
-      end:   { ...this._dragEnd  },
+      end:   previewEnd,
     });
   }
 
@@ -14081,8 +14137,8 @@ class InputHandler {
     // Guard: no fuel
     if (this._fuelManager.currentFuel === 0) return;
 
-    // Clamp the gesture length to [MIN_PLATFORM_PX, MAX_PLATFORM_PX]
-    const clampedLength = Math.max(MIN_PLATFORM_PX, Math.min(MAX_PLATFORM_PX, rawLength));
+    // Clamp the gesture length to [MIN_PLATFORM_PX, _maxPlatformPx]
+    const clampedLength = Math.max(MIN_PLATFORM_PX, Math.min(this._maxPlatformPx, rawLength));
 
     // Scale the end point along the gesture direction to match the clamped length
     const scale = clampedLength / rawLength;
@@ -14745,10 +14801,8 @@ class Renderer {
     // 8. HUD overlay (fixed, not affected by viewport transform)
     this._drawHUD(ctx, w, h);
 
-    // 9. Game-over overlay
-    if (this._gameOverState !== null) {
-      this._drawGameOver(ctx, w, h);
-    }
+    // Note: game-over is now handled as an HTML overlay (screen-gameover),
+    // not drawn on canvas. The _gameOverState flag is kept for compatibility.
   }
 
   // ---------------------------------------------------------------------------
@@ -14885,8 +14939,8 @@ class Renderer {
     // Score
     ctx.fillText(`SCORE  ${Math.floor(score)}`, PAD, PAD);
 
-    // Height
-    ctx.fillText(`HEIGHT ${Math.floor(height)} px`, PAD, PAD + LINE_H);
+    // Height (convert pixels → metres using PPM=60)
+    ctx.fillText(`HEIGHT ${(height / 60).toFixed(1)} m`, PAD, PAD + LINE_H);
 
     // High score (top-right)
     ctx.textAlign = 'right';

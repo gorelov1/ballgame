@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.example.ballbouncegame" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="com.mobotan.ballbouncegame" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>Ball Bounce Game</name>
     <description>
         A JavaScript-based Android mobile game where the player draws temporary
         platforms to bounce a falling ball upward, collecting gems to replenish fuel.
     </description>
-    <author email="dev@example.com" href="http://example.com">
+    <author email="mobotan@gmail.com" href="https://github.com/gorelov1/ballgame/">
         Ball Bounce Game Developer
     </author>
     <content src="index.html" />
@@ -18,6 +18,11 @@
     <allow-intent href="geo:*" />
     <allow-intent href="market:*" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <icon density="mdpi" src="res/android/mdpi/ic_launcher.png" />
+    <icon density="hdpi" src="res/android/hdpi/ic_launcher.png" />
+    <icon density="xhdpi" src="res/android/xhdpi/ic_launcher.png" />
+    <icon density="xxhdpi" src="res/android/xxhdpi/ic_launcher.png" />
+    <icon density="xxxhdpi" src="res/android/xxxhdpi/ic_launcher.png" />
     <preference name="loglevel" value="DEBUG" />
     <preference name="DisallowOverscroll" value="true" />
     <preference name="android-windowSoftInputMode" value="adjustResize" />

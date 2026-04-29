@@ -32,7 +32,12 @@
         <preference name="android-targetSdkVersion" value="34" />
         <!-- INTERNET permission required for Railway backend connectivity -->
         <uses-permission android:name="android.permission.INTERNET" />
-        <icon src="www/icon.png" width="57" height="57" />
+        <!-- Launcher icons — sourced from www/icon.png -->
+        <icon src="res/android/mdpi/ic_launcher.png"    density="mdpi" />
+        <icon src="res/android/hdpi/ic_launcher.png"    density="hdpi" />
+        <icon src="res/android/xhdpi/ic_launcher.png"   density="xhdpi" />
+        <icon src="res/android/xxhdpi/ic_launcher.png"  density="xxhdpi" />
+        <icon src="res/android/xxxhdpi/ic_launcher.png" density="xxxhdpi" />
     </platform>
 
     <preference name="DisallowOverscroll" value="true" />

@@ -31,8 +31,8 @@ const MIN_PLATFORM_PX = 50;
 /** Maximum platform length in pixels */
 const MAX_PLATFORM_PX = 400;
 
-/** Fuel units deducted per platform drawn */
-const PLATFORM_FUEL_COST = 10;
+/** Fuel units deducted per platform drawn (base cost for minimum-length line) */
+const PLATFORM_FUEL_COST = 5;
 
 /** Maximum fuel reserve cap */
 const MAX_FUEL = 200;

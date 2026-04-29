@@ -17,7 +17,7 @@
        under the License.
  */
 
-package com.example.ballbouncegame;
+package com.mobotan.ballbouncegame;
 
 import android.os.Bundle;
 

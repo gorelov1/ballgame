@@ -174,10 +174,30 @@
             margin-bottom: 20px;
         }
 
+        /* ── Settings button (visible during gameplay) ── */
+        #btn-settings {
+            position: absolute;
+            top: 12px; right: 16px;
+            width: 40px; height: 40px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(136,204,255,0.25);
+            border-radius: 8px;
+            color: #88ccff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: none;          /* shown only during active gameplay */
+            align-items: center;
+            justify-content: center;
+            z-index: 12;
+            transition: background 0.15s;
+            user-select: none;
+        }
+        #btn-settings:hover { background: rgba(136,204,255,0.18); }
+
         /* ── Current user badge ── */
         #current-user-badge {
             position: absolute;
-            top: 12px; right: 16px;
+            top: 12px; right: 64px;  /* shifted left to make room for settings btn */
             font-size: 0.8rem;
             color: #556;
             letter-spacing: 1px;
@@ -189,6 +209,9 @@
 <body>
 
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Settings button — visible during active gameplay -->
+    <button id="btn-settings" title="Settings / Pause">⚙</button>
 
     <!-- Current user indicator (visible during gameplay) -->
     <div id="current-user-badge"></div>
@@ -250,9 +273,17 @@
     <!-- ── PAUSE SCREEN ── -->
     <div id="screen-pause" class="screen">
         <div class="pause-title">PAUSED</div>
-        <button class="btn primary" id="btn-resume">▶  RESUME</button>
-        <button class="btn" id="btn-pause-highscores">🏆  HIGH SCORES</button>
-        <button class="btn danger" id="btn-quit">✕  QUIT TO MENU</button>
+        <button class="btn primary" id="btn-resume">▶  CONTINUE</button>
+        <button class="btn danger" id="btn-quit">✕  EXIT TO MENU</button>
+    </div>
+
+    <!-- ── GAME OVER SCREEN ── -->
+    <div id="screen-gameover" class="screen">
+        <div style="font-size:clamp(2rem,8vw,3.5rem);font-weight:bold;color:#ff4444;text-shadow:0 0 20px #ff0000;letter-spacing:4px;margin-bottom:24px;">GAME OVER</div>
+        <div id="gameover-score"  style="font-size:1.4rem;color:#fff;margin-bottom:8px;letter-spacing:2px;"></div>
+        <div id="gameover-best"   style="font-size:1.1rem;color:#ffd700;margin-bottom:40px;letter-spacing:2px;"></div>
+        <button class="btn primary" id="btn-gameover-restart">↺  RESTART</button>
+        <button class="btn danger"  id="btn-gameover-menu"   style="margin-top:8px;">← BACK TO MENU</button>
     </div>
 
     <!-- Backend URL — Railway deployment -->

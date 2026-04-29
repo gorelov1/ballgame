@@ -277,6 +277,15 @@
         <button class="btn danger" id="btn-quit">✕  EXIT TO MENU</button>
     </div>
 
+    <!-- ── GAME OVER SCREEN ── -->
+    <div id="screen-gameover" class="screen">
+        <div style="font-size:clamp(2rem,8vw,3.5rem);font-weight:bold;color:#ff4444;text-shadow:0 0 20px #ff0000;letter-spacing:4px;margin-bottom:24px;">GAME OVER</div>
+        <div id="gameover-score"  style="font-size:1.4rem;color:#fff;margin-bottom:8px;letter-spacing:2px;"></div>
+        <div id="gameover-best"   style="font-size:1.1rem;color:#ffd700;margin-bottom:40px;letter-spacing:2px;"></div>
+        <button class="btn primary" id="btn-gameover-restart">↺  RESTART</button>
+        <button class="btn danger"  id="btn-gameover-menu"   style="margin-top:8px;">← BACK TO MENU</button>
+    </div>
+
     <!-- Backend URL — Railway deployment -->
     <script>window.BACKEND_URL = 'https://ball-bounce-game-backend-production.up.railway.app';</script>
 

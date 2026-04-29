@@ -258,6 +258,15 @@
 
     engine = new window.GameEngine(canvas, config);
 
+    // Wire game-over callback — show HTML overlay instead of canvas text
+    engine.onGameOver = function (finalScore, highScore) {
+      isPlaying = false;
+      showSettingsButton(false);
+      document.getElementById('gameover-score').textContent = 'SCORE  ' + Math.floor(finalScore);
+      document.getElementById('gameover-best').textContent  = 'BEST   ' + Math.floor(highScore);
+      showScreen('screen-gameover');
+    };
+
     // When the game ends (ball out of bounds), show menu after a short delay
     // GameEngine already shows its own game-over overlay; we hook into restart
     var origRestart = engine.restart.bind(engine);
@@ -269,16 +278,6 @@
     engine.start().catch(function (err) {
       console.error('GameEngine.start() error:', err);
     });
-
-    // Hide settings button when game over (engine stops itself)
-    // We poll sessionActive to detect game-over state
-    var gameOverCheck = setInterval(function () {
-      if (!engine) { clearInterval(gameOverCheck); return; }
-      if (engine._sessionActive === false && isPlaying && !isPaused) {
-        showSettingsButton(false);
-        clearInterval(gameOverCheck);
-      }
-    }, 200);
   }
 
   // ---------------------------------------------------------------------------
@@ -313,6 +312,26 @@
     document.getElementById('btn-settings').addEventListener('click', function () {
       if (isPlaying && !isPaused) pauseGame();
       else if (isPaused) resumeGame();
+    });
+
+    // Game-over screen buttons
+    document.getElementById('btn-gameover-restart').addEventListener('click', function () {
+      hideAllScreens();
+      if (engine) {
+        isPlaying = true;
+        showSettingsButton(true);
+        engine.restart();
+      } else {
+        startGame();
+      }
+    });
+    document.getElementById('btn-gameover-menu').addEventListener('click', function () {
+      if (engine) {
+        try { engine.pause(); } catch (e) {}
+        engine = null;
+      }
+      isPlaying = false;
+      showScreen('screen-menu');
     });
 
     // Check if we already have a stored username

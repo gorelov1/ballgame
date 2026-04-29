@@ -205,10 +205,8 @@ class Renderer {
     // 8. HUD overlay (fixed, not affected by viewport transform)
     this._drawHUD(ctx, w, h);
 
-    // 9. Game-over overlay
-    if (this._gameOverState !== null) {
-      this._drawGameOver(ctx, w, h);
-    }
+    // Note: game-over is now handled as an HTML overlay (screen-gameover),
+    // not drawn on canvas. The _gameOverState flag is kept for compatibility.
   }
 
   // ---------------------------------------------------------------------------
