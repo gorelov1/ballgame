@@ -1,6 +1,6 @@
 {
   "name": "ball-bounce-game",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A JavaScript-based Android mobile game packaged via Apache Cordova",
   "main": "src/engine/GameEngine.js",
   "scripts": {

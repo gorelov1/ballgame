@@ -35,6 +35,9 @@ const {
   MAX_FUEL,
   PLATFORM_FUEL_COST,
   GEM_FUEL_VALUE,
+  GEM_TYPES,
+  SPEED_BOOST_MULTIPLIER,
+  SPEED_BOOST_DURATION_MS,
   HEIGHT_WEIGHT,
   GEM_WEIGHT,
   GRAVITY,
@@ -99,6 +102,10 @@ class GameEngine {
     // --- Active platforms: Map<id, PlatformHandle> ---
     this._activePlatforms = new Map();
 
+    // --- Speed boost state (blue gem) ---
+    this._speedBoostRemainingMs = 0;
+    this._speedBoostActive = false;
+
     // --- Canvas dimensions ---
     this._canvasWidth = canvas.width;
     this._canvasHeight = canvas.height;
@@ -135,9 +142,10 @@ class GameEngine {
     this._physicsEngine.createWalls(this._canvasWidth, this._canvasHeight);
 
     // Set out-of-bounds threshold: ball falls below the initial canvas bottom
-    // (world y > canvasHeight + small margin). The viewport follows the ball
-    // downward so game-over only triggers when it truly hits the floor.
     this._physicsEngine._outOfBoundsY = this._canvasHeight * 1.5;
+
+    // Tell renderer where the ground is (world Y = canvasHeight)
+    this._renderer.setGroundY(this._canvasHeight);
 
     // Enable touch input, set max platform length to 50% of canvas width
     this._inputHandler.setMaxLength(this._canvasWidth * 0.5);
@@ -187,6 +195,10 @@ class GameEngine {
     this._scoreManager.reset();
     this._gemSpawner.reset();
     this._levelManager.reset();
+
+    // Reset speed boost
+    this._speedBoostRemainingMs = 0;
+    this._speedBoostActive = false;
 
     // Destroy all active platforms
     for (const handle of this._activePlatforms.values()) {
@@ -245,11 +257,23 @@ class GameEngine {
     const currentScore = this._scoreManager.currentScore;
     this._levelManager.update(currentScore);
     this._levelManager.tick(deltaTime * 1000);
-    // Apply physics params for current level every tick (cheap, idempotent)
+
+    // Decay speed boost timer
+    if (this._speedBoostRemainingMs > 0) {
+      this._speedBoostRemainingMs = Math.max(0, this._speedBoostRemainingMs - deltaTime * 1000);
+      if (this._speedBoostRemainingMs === 0) {
+        this._speedBoostActive = false;
+      }
+    }
+
+    // Apply physics params — multiply max speed by boost factor (decays linearly)
+    const boostFactor = this._speedBoostActive
+      ? 1 + (SPEED_BOOST_MULTIPLIER - 1) * (this._speedBoostRemainingMs / SPEED_BOOST_DURATION_MS)
+      : 1;
     this._physicsEngine.setPhysicsParams(
       this._levelManager.gravity,
-      this._levelManager.bounceSpeed,
-      this._levelManager.maxBallSpeed
+      this._levelManager.bounceSpeed * boostFactor,
+      this._levelManager.maxBallSpeed * boostFactor
     );
 
     // Persist high score in real-time so crashes don't lose progress
@@ -285,7 +309,8 @@ class GameEngine {
       this._levelManager.currentLevel,
       this._levelManager.currentLabel,
       this._levelManager.isLevelUpFlashing,
-      this._levelManager.levelUpTimerMs
+      this._levelManager.levelUpTimerMs,
+      this._speedBoostActive ? this._speedBoostRemainingMs : 0
     );
 
     this._renderer.draw(this._accumulator / FIXED_STEP);
@@ -392,8 +417,8 @@ class GameEngine {
   _wirePhysicsCallbacks() {
     this._physicsEngine.onBallPlatformContact = (platformId, relVel) =>
       this._onBallPlatformContact(platformId, relVel);
-    this._physicsEngine.onBallGemContact = (gemId) =>
-      this._onBallGemContact(gemId);
+    this._physicsEngine.onBallGemContact = (gemId, gemType) =>
+      this._onBallGemContact(gemId, gemType);
     this._physicsEngine.onBallOutOfBounds = (ballY) =>
       this._onBallOutOfBounds(ballY);
   }
@@ -448,19 +473,42 @@ class GameEngine {
 
   /**
    * Handle ball–gem contact.
-   * Destroys the gem body, removes it from the spawner, and awards fuel + score.
-   * Requirements: 5.2
+   * Applies the gem's effect based on its type:
+   *   red    → -10 fuel
+   *   yellow → +10 fuel
+   *   green  → +25 fuel
+   *   blue   → 10× speed boost for 5 seconds (decays linearly)
    *
    * @param {string} gemId
+   * @param {string} gemType
    */
-  _onBallGemContact(gemId) {
+  _onBallGemContact(gemId, gemType) {
     const gemHandle = this._gemSpawner.getActiveGems().find((g) => g.id === gemId);
     if (gemHandle) {
       this._physicsEngine.destroyBody(gemHandle);
     }
     this._gemSpawner.removeGem(gemId);
-    this._fuelManager.add(GEM_FUEL_VALUE);
     this._scoreManager.onGemCollected();
+
+    switch (gemType) {
+      case 'red':
+        // Force-drain 10 fuel, floors at 0
+        this._fuelManager.drain(10);
+        break;
+      case 'yellow':
+        this._fuelManager.add(10);
+        break;
+      case 'green':
+        this._fuelManager.add(25);
+        break;
+      case 'blue':
+        // Activate / refresh speed boost
+        this._speedBoostActive = true;
+        this._speedBoostRemainingMs = SPEED_BOOST_DURATION_MS;
+        break;
+      default:
+        this._fuelManager.add(GEM_FUEL_VALUE);
+    }
   }
 
   /**

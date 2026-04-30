@@ -43,6 +43,15 @@ class Renderer {
     // Game-over overlay state: { finalScore, highScore } or null
     this._gameOverState = null;
 
+    // Ground Y position in world pixels (set by GameEngine)
+    this._groundY = 800;
+
+    // Stars: fixed positions generated once
+    this._stars = this._generateStars(120);
+
+    // Space debris: floating objects
+    this._debris = this._generateDebris(18);
+
     // HUD values
     this._scoreState = {
       score: 0,
@@ -54,6 +63,7 @@ class Renderer {
       levelLabel: 'EASY',
       levelUpFlashing: false,
       levelUpTimerMs: 0,
+      speedBoostMs: 0,
     };
   }
 
@@ -67,6 +77,11 @@ class Renderer {
    */
   setViewportOffset(yOffset) {
     this._viewportOffset = yOffset;
+  }
+
+  /** Set the world Y coordinate of the ground (bottom of the world). */
+  setGroundY(y) {
+    this._groundY = y;
   }
 
   /**
@@ -148,12 +163,13 @@ class Renderer {
    * @param {number} maxFuel
    * @param {number} highScore
    */
-  updateHUD(score, height, fuel, maxFuel, highScore, level, levelLabel, levelUpFlashing, levelUpTimerMs) {
+  updateHUD(score, height, fuel, maxFuel, highScore, level, levelLabel, levelUpFlashing, levelUpTimerMs, speedBoostMs) {
     this._scoreState = { score, height, fuel, maxFuel, highScore,
       level: level || 1,
       levelLabel: levelLabel || 'EASY',
       levelUpFlashing: !!levelUpFlashing,
       levelUpTimerMs: levelUpTimerMs || 0,
+      speedBoostMs: speedBoostMs || 0,
     };
   }
 
@@ -185,16 +201,19 @@ class Renderer {
     ctx.save();
     ctx.translate(0, -this._viewportOffset);
 
-    // 4. Platforms
+    // 4. Ground scene (grass, lake, house) — drawn in world space at the bottom
+    this._drawGroundScene(ctx, w);
+
+    // 5. Platforms
     this._drawPlatforms(ctx);
 
-    // 5. Gems
+    // 6. Gems
     this._drawGems(ctx);
 
-    // 6. Ball
+    // 7. Ball
     this._drawBall(ctx);
 
-    // 7. Drag-preview line (drawn in world space so it scrolls with the viewport)
+    // 8. Drag-preview line (drawn in world space so it scrolls with the viewport)
     if (this._previewLine !== null) {
       this._drawPreviewLine(ctx);
     }
@@ -213,13 +232,290 @@ class Renderer {
   // Private drawing helpers
   // ---------------------------------------------------------------------------
 
-  /** Draw a dark vertical gradient as the background. */
+  /**
+   * Draw the sky-to-space background.
+   * Near the ground: bright blue sky with sun.
+   * Higher up: transitions to deep space with stars and debris.
+   */
   _drawBackground(ctx, w, h) {
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, '#0a0a1a');
-    gradient.addColorStop(1, '#1a1a2e');
-    ctx.fillStyle = gradient;
+    const TRANSITION_HEIGHT = 60000; // 1000 metres at 60 px/m
+    const spaceProgress = Math.min(1, Math.max(0, -this._viewportOffset / TRANSITION_HEIGHT));
+
+    // Sky/space gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    if (spaceProgress < 0.5) {
+      const t = spaceProgress * 2;
+      const topR = Math.round(10  + t * 2);
+      const topG = Math.round(10  + t * 5);
+      const topB = Math.round(30  + t * 20);
+      const botR = Math.round(30  + (1-t) * 100);
+      const botG = Math.round(100 + (1-t) * 60);
+      const botB = Math.round(200 + (1-t) * 55);
+      grad.addColorStop(0, `rgb(${topR},${topG},${topB})`);
+      grad.addColorStop(1, `rgb(${botR},${botG},${botB})`);
+    } else {
+      const t = (spaceProgress - 0.5) * 2;
+      const botB = Math.round(60 - t * 50);
+      grad.addColorStop(0, '#050510');
+      grad.addColorStop(1, `rgb(5,5,${botB})`);
+    }
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
+
+    // Sun (visible near ground)
+    if (spaceProgress < 0.7) {
+      const sunAlpha = 1 - spaceProgress / 0.7;
+      const sunX = w * 0.78;
+      const sunY = h * 0.18;
+      const sunR = Math.min(w, h) * 0.07;
+      ctx.save();
+      ctx.globalAlpha = sunAlpha;
+      const sunGlow = ctx.createRadialGradient(sunX, sunY, sunR * 0.3, sunX, sunY, sunR * 2.5);
+      sunGlow.addColorStop(0, 'rgba(255,255,180,0.4)');
+      sunGlow.addColorStop(1, 'rgba(255,200,50,0)');
+      ctx.fillStyle = sunGlow;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, sunR * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      const sunDisc = ctx.createRadialGradient(sunX - sunR * 0.2, sunY - sunR * 0.2, sunR * 0.1, sunX, sunY, sunR);
+      sunDisc.addColorStop(0, '#fffde0');
+      sunDisc.addColorStop(0.6, '#ffe066');
+      sunDisc.addColorStop(1, '#ffaa00');
+      ctx.fillStyle = sunDisc;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Stars (fade in as we go higher)
+    if (spaceProgress > 0.1) {
+      const starAlpha = Math.min(1, (spaceProgress - 0.1) / 0.4);
+      ctx.save();
+      ctx.globalAlpha = starAlpha;
+      for (const star of this._stars) {
+        ctx.fillStyle = star.color;
+        ctx.beginPath();
+        ctx.arc(star.x * w, star.y * h, star.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Space debris (fade in deep space)
+    if (spaceProgress > 0.5) {
+      const debrisAlpha = Math.min(1, (spaceProgress - 0.5) / 0.3);
+      const now = performance.now() / 1000;
+      ctx.save();
+      ctx.globalAlpha = debrisAlpha;
+      for (const d of this._debris) {
+        const dx = ((d.x + d.vx * now) % 1 + 1) % 1;
+        const dy = ((d.y + d.vy * now) % 1 + 1) % 1;
+        const px = dx * w;
+        const py = dy * h;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(d.angle + d.spin * now);
+        ctx.fillStyle = d.color;
+        if (d.type === 'bolt') {
+          ctx.fillRect(-d.size * 1.5, -d.size * 0.3, d.size * 3, d.size * 0.6);
+          ctx.fillRect(-d.size * 0.3, -d.size * 1.5, d.size * 0.6, d.size * 3);
+        } else if (d.type === 'panel') {
+          ctx.fillStyle = '#334466';
+          ctx.fillRect(-d.size * 1.2, -d.size * 0.5, d.size * 2.4, d.size);
+          ctx.strokeStyle = '#5577aa';
+          ctx.lineWidth = 1;
+          for (let i = -1; i <= 1; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * d.size * 0.8, -d.size * 0.5);
+            ctx.lineTo(i * d.size * 0.8,  d.size * 0.5);
+            ctx.stroke();
+          }
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(d.size, 0);
+          for (let i = 1; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            const r = d.size * (0.6 + Math.sin(i * 7 + d.seed) * 0.4);
+            ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+
+  _generateStars(count) {
+    const stars = [];
+    for (let i = 0; i < count; i++) {
+      const b = 180 + Math.floor(Math.random() * 75);
+      stars.push({ x: Math.random(), y: Math.random(), r: 0.5 + Math.random() * 1.5, color: `rgb(${b},${b},${Math.min(255,b+20)})` });
+    }
+    return stars;
+  }
+
+  _generateDebris(count) {
+    const types  = ['bolt', 'panel', 'rock'];
+    const colors = ['#aabbcc', '#889aaa', '#ccaa88', '#aaaaaa', '#778899'];
+    const debris = [];
+    for (let i = 0; i < count; i++) {
+      debris.push({
+        x: Math.random(), y: Math.random(),
+        vx: (Math.random() - 0.5) * 0.008, vy: (Math.random() - 0.5) * 0.004,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - 0.5) * 0.5,
+        size: 2 + Math.random() * 4.7,  // 3x smaller than original (was 6–20)
+        type: types[Math.floor(Math.random() * types.length)],
+        color: colors[Math.floor(Math.random() * colors.length)],
+        seed: Math.random() * 100,
+      });
+    }
+    return debris;
+  }
+
+  /**
+   * Draw the ground scene at the bottom of the world:
+   * grass ground, a small lake, and a house with a roof.
+   * Drawn in world coordinates — scrolls with the viewport.
+   */
+  _drawGroundScene(ctx, w) {
+    const gy = this._groundY; // world Y of the ground surface
+    const sceneH = 200;       // how tall the scene is below the ground line
+
+    ctx.save();
+
+    // ── Sky/ground fill below the ground line ──────────────────────────────
+    ctx.fillStyle = '#1a3a1a';
+    ctx.fillRect(0, gy, w, sceneH);
+
+    // ── Grass strip ─────────────────────────────────────────────────────────
+    // Wavy grass using a bezier path
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    const grassH = 18;
+    const segments = Math.ceil(w / 60);
+    for (let i = 0; i <= segments; i++) {
+      const x = (i / segments) * w;
+      const bump = (i % 2 === 0) ? -grassH : -grassH * 0.4;
+      ctx.lineTo(x, gy + bump);
+    }
+    ctx.lineTo(w, gy + 30);
+    ctx.lineTo(0, gy + 30);
+    ctx.closePath();
+    ctx.fillStyle = '#2d7a2d';
+    ctx.fill();
+
+    // Lighter grass highlight
+    ctx.beginPath();
+    ctx.moveTo(0, gy - 2);
+    for (let i = 0; i <= segments; i++) {
+      const x = (i / segments) * w;
+      const bump = (i % 2 === 0) ? -grassH + 4 : -grassH * 0.4 + 2;
+      ctx.lineTo(x, gy + bump);
+    }
+    ctx.strokeStyle = '#4aaa4a';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // ── Lake ────────────────────────────────────────────────────────────────
+    const lakeX = w * 0.55;
+    const lakeY = gy + 10;
+    const lakeW = w * 0.22;
+    const lakeH2 = 28;
+
+    ctx.beginPath();
+    ctx.ellipse(lakeX, lakeY, lakeW / 2, lakeH2 / 2, 0, 0, Math.PI * 2);
+    const lakeGrad = ctx.createRadialGradient(lakeX - lakeW * 0.1, lakeY - 4, 2, lakeX, lakeY, lakeW / 2);
+    lakeGrad.addColorStop(0, '#88ccff');
+    lakeGrad.addColorStop(0.5, '#2277bb');
+    lakeGrad.addColorStop(1, '#114466');
+    ctx.fillStyle = lakeGrad;
+    ctx.fill();
+
+    // Lake shimmer
+    ctx.beginPath();
+    ctx.ellipse(lakeX - lakeW * 0.15, lakeY - 4, lakeW * 0.12, 3, -0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fill();
+
+    // ── House ───────────────────────────────────────────────────────────────
+    const hx = w * 0.18;
+    const hy = gy - 10;
+    const houseW = w * 0.12;
+    const houseH = houseW * 0.75;
+
+    // House body
+    ctx.fillStyle = '#d4a96a';
+    ctx.fillRect(hx - houseW / 2, hy - houseH, houseW, houseH);
+
+    // Door
+    const doorW = houseW * 0.22;
+    const doorH = houseH * 0.42;
+    ctx.fillStyle = '#7a4a1a';
+    ctx.fillRect(hx - doorW / 2, hy - doorH, doorW, doorH);
+
+    // Windows
+    const winSize = houseW * 0.18;
+    ctx.fillStyle = '#aaddff';
+    ctx.fillRect(hx - houseW * 0.35, hy - houseH * 0.65, winSize, winSize);
+    ctx.fillRect(hx + houseW * 0.17, hy - houseH * 0.65, winSize, winSize);
+    // Window cross
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    [-0.35, 0.17].forEach(function(ox) {
+      const wx = hx + ox * houseW;
+      ctx.beginPath();
+      ctx.moveTo(wx + winSize / 2, hy - houseH * 0.65);
+      ctx.lineTo(wx + winSize / 2, hy - houseH * 0.65 + winSize);
+      ctx.moveTo(wx, hy - houseH * 0.65 + winSize / 2);
+      ctx.lineTo(wx + winSize, hy - houseH * 0.65 + winSize / 2);
+      ctx.stroke();
+    });
+
+    // Roof (triangle)
+    ctx.beginPath();
+    ctx.moveTo(hx - houseW / 2 - 6, hy - houseH);
+    ctx.lineTo(hx, hy - houseH - houseW * 0.55);
+    ctx.lineTo(hx + houseW / 2 + 6, hy - houseH);
+    ctx.closePath();
+    ctx.fillStyle = '#8b2020';
+    ctx.fill();
+
+    // Chimney
+    ctx.fillStyle = '#6a3a1a';
+    ctx.fillRect(hx + houseW * 0.2, hy - houseH - houseW * 0.45, houseW * 0.1, houseW * 0.3);
+
+    // Smoke puffs
+    ctx.fillStyle = 'rgba(200,200,200,0.5)';
+    [0, 6, 11].forEach(function(offset) {
+      ctx.beginPath();
+      ctx.arc(hx + houseW * 0.25, hy - houseH - houseW * 0.5 - offset * 2, 4 + offset * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // ── Tree ────────────────────────────────────────────────────────────────
+    const tx = w * 0.35;
+    const ty = gy - 5;
+    const trunkH = 35;
+    const trunkW = 7;
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(tx - trunkW / 2, ty - trunkH, trunkW, trunkH);
+    // Foliage (3 layered circles)
+    [[0, trunkH + 18, 22], [0, trunkH + 32, 18], [-14, trunkH + 22, 14], [14, trunkH + 22, 14]].forEach(function([dx, dy, r]) {
+      ctx.beginPath();
+      ctx.arc(tx + dx, ty - dy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a6a1a';
+      ctx.fill();
+    });
+    // Foliage highlight
+    ctx.beginPath();
+    ctx.arc(tx - 4, ty - trunkH - 22, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a9a2a';
+    ctx.fill();
+
+    ctx.restore();
   }
 
   /**
@@ -251,20 +547,71 @@ class Renderer {
   }
 
   /**
-   * Draw all active gems as filled gold circles.
-   * Requirement 5.4: gems are visible in the viewport.
+   * Draw all active gems with distinct colours and shapes per type:
+   *   red    → downward triangle  (danger / fuel drain)
+   *   yellow → circle             (small fuel)
+   *   green  → diamond            (big fuel)
+   *   blue   → star               (speed boost)
    */
   _drawGems(ctx) {
-    const GEM_RADIUS = 12;
+    const R = 12; // base radius
 
     for (const gem of this._gems) {
+      const t = gem.gemType || 'yellow';
       ctx.save();
-      ctx.fillStyle = '#ffd700';
-      ctx.shadowColor = '#ffaa00';
-      ctx.shadowBlur = 8;
+      ctx.translate(gem.position.x, gem.position.y);
 
+      // Glow
+      const glowColors = { red: '#ff0000', yellow: '#ffaa00', green: '#00cc00', blue: '#0088ff' };
+      const fillColors = { red: '#ff3333', yellow: '#ffd700', green: '#44ee44', blue: '#44aaff' };
+      ctx.shadowColor = glowColors[t] || '#ffaa00';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = fillColors[t] || '#ffd700';
+
+      if (t === 'yellow') {
+        // Circle
+        ctx.beginPath();
+        ctx.arc(0, 0, R, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (t === 'red') {
+        // Downward triangle
+        ctx.beginPath();
+        ctx.moveTo(0, R);
+        ctx.lineTo(-R * 0.87, -R * 0.5);
+        ctx.lineTo( R * 0.87, -R * 0.5);
+        ctx.closePath();
+        ctx.fill();
+
+      } else if (t === 'green') {
+        // Diamond (rotated square)
+        ctx.beginPath();
+        ctx.moveTo(0, -R * 1.2);
+        ctx.lineTo( R * 0.85, 0);
+        ctx.lineTo(0,  R * 1.2);
+        ctx.lineTo(-R * 0.85, 0);
+        ctx.closePath();
+        ctx.fill();
+
+      } else if (t === 'blue') {
+        // 4-point star
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
+          const r = i % 2 === 0 ? R * 1.2 : R * 0.5;
+          const x = Math.cos(angle) * r;
+          const y = Math.sin(angle) * r;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Small white highlight dot
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.beginPath();
-      ctx.arc(gem.position.x, gem.position.y, GEM_RADIUS, 0, Math.PI * 2);
+      ctx.arc(-R * 0.3, -R * 0.3, R * 0.22, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
@@ -331,43 +678,46 @@ class Renderer {
    * @param {number} h  canvas height
    */
   _drawHUD(ctx, w, h) {
-    const { score, height, fuel, maxFuel, highScore, level, levelLabel, levelUpFlashing, levelUpTimerMs } = this._scoreState;
+    const { score, height, fuel, maxFuel, highScore, level, levelLabel, levelUpFlashing, levelUpTimerMs, speedBoostMs } = this._scoreState;
     const PAD = 16;
     const LINE_H = 24;
 
+    // Level colour (used for level indicator and level-up flash)
+    const levelColor = level >= 10 ? '#ff4444' : level >= 8 ? '#ff8800' : level >= 6 ? '#ffdd00' : '#88ccff';
+
     ctx.save();
-    ctx.font = 'bold 18px monospace';
-    ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'top';
 
-    // Score
+    // ── Top-left: SCORE and HEIGHT ──────────────────────────────────────────
+    ctx.font = 'bold 18px monospace';
+    ctx.fillStyle = '#ffffff';
     ctx.fillText(`SCORE  ${Math.floor(score)}`, PAD, PAD);
+    ctx.fillText(`HEIGHT ${(height / 3).toFixed(1)} m`, PAD, PAD + LINE_H);
 
-    // Height (convert pixels → metres using PPM=60)
-    ctx.fillText(`HEIGHT ${(height / 60).toFixed(1)} m`, PAD, PAD + LINE_H);
-
-    // High score (top-right)
+    // ── Top-right: BEST and LVL — inset enough to clear the ⚙ button (56px) ──
+    const rightX = w - 64;   // 64px from right edge clears the 40px button + padding
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = '#ffd700';
     ctx.textAlign = 'right';
-    ctx.fillText(`BEST  ${Math.floor(highScore)}`, w - PAD, PAD);
-    ctx.textAlign = 'left';
+    ctx.fillText(`BEST  ${Math.floor(highScore)}`, rightX, PAD);
 
-    // Level indicator (top-right, below high score)
-    const levelColor = level >= 10 ? '#ff4444' : level >= 8 ? '#ff8800' : level >= 6 ? '#ffdd00' : '#88ccff';
     ctx.font = 'bold 15px monospace';
     ctx.fillStyle = levelColor;
-    ctx.textAlign = 'right';
-    ctx.fillText(`LVL ${level}  ${levelLabel}`, w - PAD, PAD + LINE_H);
+    ctx.fillText(`LVL ${level}`, rightX, PAD + LINE_H);
     ctx.textAlign = 'left';
 
-    // Fuel bar
-    const barY = PAD + LINE_H * 2 + 4;
-    const barW = 140;
+    // ── Bottom-left: Fuel bar ───────────────────────────────────────────────
+    const barW = 160;
     const barH = 14;
+    const barX = PAD;
+    const barY = h - PAD - barH;
     const fuelRatio = maxFuel > 0 ? Math.max(0, Math.min(1, fuel / maxFuel)) : 0;
 
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.fillRect(PAD, barY, barW, barH);
+    // Background track
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(barX, barY, barW, barH);
 
+    // Fill
     if (fuelRatio > 0.5) {
       ctx.fillStyle = '#44dd44';
     } else if (fuelRatio > 0.2) {
@@ -375,31 +725,54 @@ class Renderer {
     } else {
       ctx.fillStyle = '#dd4444';
     }
-    ctx.fillRect(PAD, barY, barW * fuelRatio, barH);
+    ctx.fillRect(barX, barY, barW * fuelRatio, barH);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    // Border
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(PAD, barY, barW, barH);
+    ctx.strokeRect(barX, barY, barW, barH);
 
+    // Label to the right of the bar
     ctx.fillStyle = '#ffffff';
-    ctx.font = '14px monospace';
+    ctx.font = '13px monospace';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`FUEL ${Math.floor(fuel)} / ${Math.floor(maxFuel)}`, PAD + barW + 8, barY + barH / 2);
+    ctx.fillText(`FUEL  ${Math.floor(fuel)} / ${Math.floor(maxFuel)}`, barX + barW + 8, barY + barH / 2);
 
+    // No-fuel warning above the bar
     if (fuel === 0) {
-      ctx.font = 'bold 16px monospace';
+      ctx.font = 'bold 14px monospace';
       ctx.fillStyle = '#ff4444';
-      ctx.textBaseline = 'top';
-      ctx.fillText('⚠ NO FUEL — CANNOT DRAW PLATFORMS', PAD, barY + barH + 6);
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('⚠ NO FUEL — CANNOT DRAW', barX, barY - 4);
+    }
+
+    // Speed boost indicator (above fuel bar when active)
+    if (speedBoostMs > 0) {
+      const boostProgress = speedBoostMs / 5000;
+      const boostBarW = 160;
+      const boostBarH = 10;
+      const boostBarY = barY - (fuel === 0 ? 44 : 22);
+
+      ctx.fillStyle = 'rgba(68,170,255,0.2)';
+      ctx.fillRect(barX, boostBarY, boostBarW, boostBarH);
+      ctx.fillStyle = '#44aaff';
+      ctx.fillRect(barX, boostBarY, boostBarW * boostProgress, boostBarH);
+      ctx.strokeStyle = 'rgba(68,170,255,0.6)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, boostBarY, boostBarW, boostBarH);
+
+      ctx.fillStyle = '#44aaff';
+      ctx.font = 'bold 12px monospace';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`⚡ BOOST  ${(speedBoostMs / 1000).toFixed(1)}s`, barX + boostBarW + 8, boostBarY + boostBarH / 2);
     }
 
     ctx.restore();
 
-    // Level-up flash overlay
+    // ── Level-up flash overlay ──────────────────────────────────────────────
     if (levelUpFlashing && levelUpTimerMs > 0) {
       const FLASH_DURATION = 2500;
-      const progress = levelUpTimerMs / FLASH_DURATION; // 1 → 0 as it fades
-      // Fade in quickly, hold, then fade out
+      const progress = levelUpTimerMs / FLASH_DURATION;
       const alpha = progress > 0.7 ? (1 - progress) / 0.3 : progress < 0.15 ? progress / 0.15 : 1.0;
 
       ctx.save();
@@ -414,12 +787,8 @@ class Renderer {
       ctx.fillStyle = levelColor;
       ctx.shadowColor = levelColor;
       ctx.shadowBlur = 30;
-      ctx.fillText(`LEVEL ${level}`, w / 2, h / 2 - 20);
-
-      ctx.font = `bold ${Math.round(w * 0.04)}px monospace`;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`LEVEL ${level}`, w / 2, h / 2);
       ctx.shadowBlur = 0;
-      ctx.fillText(levelLabel, w / 2, h / 2 + 28);
       ctx.restore();
     }
   }

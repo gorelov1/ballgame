@@ -8,6 +8,14 @@
 
 const { GEM_RADIUS, GEM_SPAWN_MILESTONE_PX } = require('../config/constants');
 
+/** Gem type distribution: red 20%, yellow 60%, green 15%, blue 5% */
+const GEM_TYPE_POOL = [
+  'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow', // 12 × yellow = 60%
+  'red',    'red',    'red',    'red',                                                                                      //  4 × red    = 20%
+  'green',  'green',  'green',                                                                                              //  3 × green  = 15%
+  'blue',                                                                                                                   //  1 × blue   =  5%
+];
+
 class GemSpawner {
   /**
    * @param {object} config - Game configuration object.
@@ -33,12 +41,13 @@ class GemSpawner {
    */
   onHeightMilestone(heightPx, ballWorldY, canvasHeight) {
     const viewportWidth = this._config.viewportWidth || 400;
-    const count = Math.floor(Math.random() * 3) + 1;
+    const count = Math.floor(Math.random() * 2) + 1; // 1–2 gems (was 1–3, halved)
     const positions = this._generateGemPositions(count, viewportWidth, ballWorldY, canvasHeight);
 
     for (const position of positions) {
       try {
-        const handle = this._physicsEngine.createGem(position, GEM_RADIUS);
+        const gemType = GEM_TYPE_POOL[Math.floor(Math.random() * GEM_TYPE_POOL.length)];
+        const handle = this._physicsEngine.createGem(position, GEM_RADIUS, gemType);
         if (handle && handle.id != null) {
           this._gems.set(handle.id, handle);
         }

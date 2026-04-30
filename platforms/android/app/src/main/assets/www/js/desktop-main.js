@@ -108,6 +108,9 @@
     document.getElementById('btn-highscores').addEventListener('click', function () {
       showHighScores('screen-menu');
     });
+    document.getElementById('btn-help').addEventListener('click', function () {
+      showScreen('screen-help');
+    });
     document.getElementById('btn-about').addEventListener('click', function () {
       showScreen('screen-about');
     });
@@ -158,7 +161,7 @@
             '<td class="rank-col">' + rank + '</td>' +
             '<td>' + escapeHtml(row.username || 'Anonymous') + '</td>' +
             '<td class="score-col">' + Math.floor(row.score) + '</td>' +
-            '<td class="score-col">' + Math.floor(row.heightPx || 0) + ' px</td>';
+            '<td class="score-col">' + (row.heightPx ? (row.heightPx / 3).toFixed(1) + ' m' : '0 m') + '</td>';
           tbody.appendChild(tr);
         });
         table.style.display = 'table';
@@ -177,6 +180,13 @@
   // About screen
   // ---------------------------------------------------------------------------
   document.getElementById('btn-about-back').addEventListener('click', function () {
+    showScreen('screen-menu');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Help screen
+  // ---------------------------------------------------------------------------
+  document.getElementById('btn-help-back').addEventListener('click', function () {
     showScreen('screen-menu');
   });
 

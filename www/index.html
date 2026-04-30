@@ -157,6 +157,52 @@
         }
         #screen-about .about-text strong { color: #88ccff; }
 
+        /* ── Help screen ── */
+        #screen-help {
+            justify-content: flex-start;
+            padding: 32px 16px;
+            overflow-y: auto;
+        }
+        #screen-help .help-body {
+            width: min(520px, 92vw);
+            color: #aaa;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        #screen-help h3 {
+            color: #88ccff;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            margin: 24px 0 10px;
+            border-bottom: 1px solid rgba(136,204,255,0.15);
+            padding-bottom: 6px;
+        }
+        #screen-help h3:first-child { margin-top: 0; }
+        #screen-help .rule {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        #screen-help .rule-icon { flex-shrink: 0; width: 20px; text-align: center; }
+        #screen-help .gem-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        #screen-help .gem-icon {
+            width: 28px; height: 28px;
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #screen-help .gem-icon canvas { display: block; }
+        #screen-help .gem-info strong { display: block; font-size: 0.9rem; margin-bottom: 2px; }
+        #screen-help .gem-info span   { font-size: 0.82rem; color: #778; }
+
         /* ── Pause overlay ── */
         #screen-pause .pause-title {
             font-size: 2.5rem;
@@ -177,7 +223,7 @@
         /* ── Settings button (visible during gameplay) ── */
         #btn-settings {
             position: absolute;
-            top: 12px; right: 16px;
+            bottom: 16px; right: 16px;
             width: 40px; height: 40px;
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(136,204,255,0.25);
@@ -197,12 +243,14 @@
         /* ── Current user badge ── */
         #current-user-badge {
             position: absolute;
-            top: 12px; right: 64px;  /* shifted left to make room for settings btn */
-            font-size: 0.8rem;
-            color: #556;
+            bottom: 62px; right: 16px;
+            font-size: 0.85rem;
+            color: #cce8ff;
             letter-spacing: 1px;
             z-index: 11;
             pointer-events: none;
+            text-align: right;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
         }
     </style>
 </head>
@@ -232,6 +280,7 @@
         <div class="game-subtitle">DRAW · BOUNCE · ASCEND</div>
         <button class="btn primary" id="btn-play">▶  PLAY</button>
         <button class="btn" id="btn-highscores">🏆  HIGH SCORES</button>
+        <button class="btn" id="btn-help">❓  HELP</button>
         <button class="btn" id="btn-about">ℹ  ABOUT</button>
         <button class="btn danger" id="btn-change-user" style="margin-top:24px;font-size:0.85rem;">CHANGE PLAYER</button>
     </div>
@@ -246,7 +295,7 @@
                     <th class="rank-col">#</th>
                     <th>PLAYER</th>
                     <th class="score-col">SCORE</th>
-                    <th class="score-col">HEIGHT</th>
+                    <th class="score-col">HEIGHT (m)</th>
                 </tr>
             </thead>
             <tbody id="leaderboard-body"></tbody>
@@ -267,7 +316,65 @@
             If the ball falls off the bottom — it's <strong style="color:#ff8888">game over</strong>.<br><br>
             <span style="color:#556;font-size:0.85rem">Built with JavaScript · planck.js · MongoDB</span>
         </div>
+        <div style="width:min(480px,85vw);margin-bottom:24px;text-align:left;font-size:0.8rem;color:#556;border-top:1px solid rgba(136,204,255,0.1);padding-top:16px;">
+            <div style="color:#88ccff;letter-spacing:2px;margin-bottom:10px;font-size:0.75rem;">CHANGELOG</div>
+            <div style="margin-bottom:6px;"><span style="color:#88ccff;">v1.1.0</span> &nbsp;Rebalanced levels — gravity &amp; bounce 5× slower progression; score thresholds 5× higher; sky transition at 1000 m; smaller space debris; improved HUD layout; better username contrast.</div>
+            <div style="margin-bottom:6px;"><span style="color:#667788;">v1.0.0</span> &nbsp;Initial release.</div>
+        </div>
+        <div style="color:#445;font-size:0.75rem;letter-spacing:2px;margin-bottom:20px;">VERSION 1.1.0</div>
         <button class="btn" id="btn-about-back">← BACK</button>
+    </div>
+
+    <!-- ── HELP SCREEN ── -->
+    <div id="screen-help" class="screen">
+        <div class="help-body">
+            <div class="section-title" style="margin-bottom:20px;">❓ HOW TO PLAY</div>
+
+            <h3>OBJECTIVE</h3>
+            <div class="rule"><span class="rule-icon">🎯</span><span>Bounce the ball as high as possible without letting it fall off the bottom of the screen.</span></div>
+            <div class="rule"><span class="rule-icon">📈</span><span>Your score is based on height reached. The higher you climb, the higher your score.</span></div>
+
+            <h3>CONTROLS</h3>
+            <div class="rule"><span class="rule-icon">✏️</span><span><strong style="color:#cce8ff">Draw a line</strong> with your mouse (or finger on mobile) to create a temporary platform. The ball bounces off it upward.</span></div>
+            <div class="rule"><span class="rule-icon">⛽</span><span>Every line you draw costs <strong style="color:#cce8ff">fuel</strong>. Longer lines cost more fuel. You cannot draw without fuel.</span></div>
+            <div class="rule"><span class="rule-icon">⏱️</span><span>Platforms <strong style="color:#cce8ff">fade and disappear</strong> after a few seconds — plan ahead!</span></div>
+
+            <h3>FUEL</h3>
+            <div class="rule"><span class="rule-icon">🔋</span><span>You start with 100 fuel out of a maximum of 500. Collect gems to replenish or lose fuel.</span></div>
+            <div class="rule"><span class="rule-icon">⚠️</span><span>If you run out of fuel you cannot draw any more platforms — the ball will eventually fall.</span></div>
+
+            <h3>LEVELS</h3>
+            <div class="rule"><span class="rule-icon">⬆️</span><span>The game has 50 levels. As your score increases, gravity and ball speed gradually increase, making the game harder.</span></div>
+            <div class="rule"><span class="rule-icon">🔴</span><span>At higher levels platforms also disappear faster — react quickly!</span></div>
+
+            <h3>GEMS</h3>
+            <div class="gem-row">
+                <div class="gem-icon"><svg width="28" height="28" viewBox="-14 -14 28 28"><circle cx="0" cy="0" r="11" fill="#ffd700" filter="url(#g)"/><circle cx="-3" cy="-3" r="3" fill="rgba(255,255,255,0.5)"/><defs><filter id="g"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs></svg></div>
+                <div class="gem-info"><strong style="color:#ffd700">YELLOW — Circle</strong><span>+10 fuel &nbsp;·&nbsp; Most common (60%)</span></div>
+            </div>
+            <div class="gem-row">
+                <div class="gem-icon"><svg width="28" height="28" viewBox="-14 -14 28 28"><polygon points="0,14 -12,-7 12,-7" fill="#ff3333"/><circle cx="-3" cy="-1" r="2.5" fill="rgba(255,255,255,0.5)"/></svg></div>
+                <div class="gem-info"><strong style="color:#ff3333">RED — Triangle</strong><span>−10 fuel &nbsp;·&nbsp; Penalty gem (20%)</span></div>
+            </div>
+            <div class="gem-row">
+                <div class="gem-icon"><svg width="28" height="28" viewBox="-14 -14 28 28"><polygon points="0,-13 10,0 0,13 -10,0" fill="#44ee44"/><circle cx="-3" cy="-3" r="2.5" fill="rgba(255,255,255,0.5)"/></svg></div>
+                <div class="gem-info"><strong style="color:#44ee44">GREEN — Diamond</strong><span>+25 fuel &nbsp;·&nbsp; Uncommon (15%)</span></div>
+            </div>
+            <div class="gem-row">
+                <div class="gem-icon"><svg width="28" height="28" viewBox="-14 -14 28 28"><polygon points="0,-13 3,-4 13,-4 5,2 8,12 0,6 -8,12 -5,2 -13,-4 -3,-4" fill="#44aaff"/><circle cx="-2" cy="-4" r="2" fill="rgba(255,255,255,0.5)"/></svg></div>
+                <div class="gem-info"><strong style="color:#44aaff">BLUE — Star</strong><span>⚡ 3.3× speed boost for 5 seconds (decays gradually) &nbsp;·&nbsp; Rare (5%)</span></div>
+            </div>
+
+            <h3>TIPS</h3>
+            <div class="rule"><span class="rule-icon">💡</span><span>Draw short lines — they cost less fuel and are often more effective than long ones.</span></div>
+            <div class="rule"><span class="rule-icon">💡</span><span>Angle your platforms to redirect the ball toward gems or away from the edges.</span></div>
+            <div class="rule"><span class="rule-icon">💡</span><span>Avoid red gems when your fuel is already low — they can strand you.</span></div>
+            <div class="rule"><span class="rule-icon">💡</span><span>Blue boost launches the ball fast — have a platform ready to catch it on the way down!</span></div>
+
+            <div style="margin-top:32px; margin-bottom:8px;">
+                <button class="btn" id="btn-help-back">← BACK</button>
+            </div>
+        </div>
     </div>
 
     <!-- ── PAUSE SCREEN ── -->

@@ -35,10 +35,22 @@ const MAX_PLATFORM_PX = 400;
 const PLATFORM_FUEL_COST = 5;
 
 /** Maximum fuel reserve cap */
-const MAX_FUEL = 200;
+const MAX_FUEL = 500;
 
 /** Fuel units restored when the ball collects a gem */
 const GEM_FUEL_VALUE = 30;
+
+/** Fuel effect per gem type */
+const GEM_TYPES = {
+  red:    { fuel: -10, label: 'RED',   color: '#ff3333' },
+  yellow: { fuel: +10, label: 'YELLOW', color: '#ffd700' },
+  green:  { fuel: +25, label: 'GREEN',  color: '#44ee44' },
+  blue:   { fuel:   0, label: 'BLUE',   color: '#44aaff' }, // speed boost, no fuel change
+};
+
+/** Blue gem speed boost multiplier and duration */
+const SPEED_BOOST_MULTIPLIER = 3.3;
+const SPEED_BOOST_DURATION_MS = 5000;
 
 /** Fuel reserve at the start of each session */
 const STARTING_FUEL = 100;
@@ -62,7 +74,7 @@ const PLATFORM_LIFETIME_MS = 4000;
 const BOUNCE_RESTITUTION = 0.85;
 
 /** Height interval in pixels at which gems are spawned */
-const GEM_SPAWN_MILESTONE_PX = 200;
+const GEM_SPAWN_MILESTONE_PX = 400; // doubled from 200 to halve spawn frequency
 
 module.exports = {
   FIXED_STEP,
@@ -76,6 +88,9 @@ module.exports = {
   PLATFORM_FUEL_COST,
   MAX_FUEL,
   GEM_FUEL_VALUE,
+  GEM_TYPES,
+  SPEED_BOOST_MULTIPLIER,
+  SPEED_BOOST_DURATION_MS,
   STARTING_FUEL,
   HEIGHT_WEIGHT,
   GEM_WEIGHT,

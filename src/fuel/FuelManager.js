@@ -49,6 +49,16 @@ class FuelManager {
   }
 
   /**
+   * Force-drain `amount` fuel, flooring at 0. Used by penalty gems (red).
+   * Unlike deduct(), this always applies even if fuel < amount.
+   *
+   * @param {number} amount - Fuel units to drain.
+   */
+  drain(amount) {
+    this._currentFuel = Math.max(0, this._currentFuel - amount);
+  }
+
+  /**
    * Add `amount` fuel to the reserve, capped at `maxFuel`.
    *
    * @param {number} amount - Fuel units to add.

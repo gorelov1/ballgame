@@ -184,8 +184,9 @@ class PhysicsEngine {
     });
     rightBody.setUserData({ id: 'wall-right', type: 'wall' });
   }
-  createGem(positionPx, radiusPx) {
+  createGem(positionPx, radiusPx, gemType) {
     const id = uuidv4();
+    const type = gemType || 'yellow';
     const body = this._world.createBody({
       type: 'static',
       position: planck.Vec2(this._toM(positionPx.x), this._toM(positionPx.y)),
@@ -194,9 +195,9 @@ class PhysicsEngine {
       shape: planck.Circle(this._toM(radiusPx)),
       isSensor: true,
     });
-    body.setUserData({ id, type: 'gem' });
+    body.setUserData({ id, type: 'gem', gemType: type });
 
-    return { id, body, type: 'gem', position: positionPx };
+    return { id, body, type: 'gem', gemType: type, position: positionPx };
   }
 
   /**
@@ -338,7 +339,7 @@ class PhysicsEngine {
           this.onBallPlatformContact(otherData.id, relSpeed);
         }
       } else if (otherData.type === 'gem' && this.onBallGemContact) {
-        this.onBallGemContact(otherData.id);
+        this.onBallGemContact(otherData.id, otherData.gemType || 'yellow');
       }
     });
   }
