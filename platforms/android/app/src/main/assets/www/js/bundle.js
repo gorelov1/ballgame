@@ -12845,7 +12845,7 @@ const GEM_TYPES = {
 };
 
 /** Blue gem speed boost multiplier and duration */
-const SPEED_BOOST_MULTIPLIER = 1.1;  // 3.3 ÷ 3
+const SPEED_BOOST_MULTIPLIER = 2;
 const SPEED_BOOST_DURATION_MS = 5000;
 
 /** Fuel reserve at the start of each session */
@@ -13722,10 +13722,10 @@ class GameEngine {
         this._fuelManager.drain(10);
         break;
       case 'yellow':
-        this._fuelManager.add(10);
+        this._fuelManager.add(20);
         break;
       case 'green':
-        this._fuelManager.add(25);
+        this._fuelManager.add(40);
         break;
       case 'blue':
         this._speedBoostActive = true;
