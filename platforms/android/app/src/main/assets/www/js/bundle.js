@@ -12845,7 +12845,7 @@ const GEM_TYPES = {
 };
 
 /** Blue gem speed boost multiplier and duration */
-const SPEED_BOOST_MULTIPLIER = 10;
+const SPEED_BOOST_MULTIPLIER = 1.1;  // 3.3 ÷ 3
 const SPEED_BOOST_DURATION_MS = 5000;
 
 /** Fuel reserve at the start of each session */
@@ -12870,7 +12870,7 @@ const PLATFORM_LIFETIME_MS = 4000;
 const BOUNCE_RESTITUTION = 0.85;
 
 /** Height interval in pixels at which gems are spawned */
-const GEM_SPAWN_MILESTONE_PX = 200;
+const GEM_SPAWN_MILESTONE_PX = 400; // doubled from 200 to halve spawn frequency
 
 module.exports = {
   FIXED_STEP,
@@ -13712,9 +13712,13 @@ class GameEngine {
     this._gemSpawner.removeGem(gemId);
     this._scoreManager.onGemCollected();
 
+    // While boost is active, only blue gems can refresh it — all others are ignored
+    if (this._speedBoostActive && gemType !== 'blue') {
+      return;
+    }
+
     switch (gemType) {
       case 'red':
-        // Force-drain 10 fuel, floors at 0
         this._fuelManager.drain(10);
         break;
       case 'yellow':
@@ -13724,7 +13728,6 @@ class GameEngine {
         this._fuelManager.add(25);
         break;
       case 'blue':
-        // Activate / refresh speed boost
         this._speedBoostActive = true;
         this._speedBoostRemainingMs = SPEED_BOOST_DURATION_MS;
         break;
@@ -13922,7 +13925,7 @@ class GemSpawner {
    */
   onHeightMilestone(heightPx, ballWorldY, canvasHeight) {
     const viewportWidth = this._config.viewportWidth || 400;
-    const count = Math.floor(Math.random() * 3) + 1;
+    const count = Math.floor(Math.random() * 2) + 1; // 1–2 gems (was 1–3, halved)
     const positions = this._generateGemPositions(count, viewportWidth, ballWorldY, canvasHeight);
 
     for (const position of positions) {

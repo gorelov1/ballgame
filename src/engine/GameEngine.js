@@ -490,19 +490,22 @@ class GameEngine {
     this._gemSpawner.removeGem(gemId);
     this._scoreManager.onGemCollected();
 
+    // While boost is active, only blue gems can refresh it — all others are ignored
+    if (this._speedBoostActive && gemType !== 'blue') {
+      return;
+    }
+
     switch (gemType) {
       case 'red':
-        // Force-drain 10 fuel, floors at 0
         this._fuelManager.drain(10);
         break;
       case 'yellow':
-        this._fuelManager.add(10);
+        this._fuelManager.add(20);
         break;
       case 'green':
-        this._fuelManager.add(25);
+        this._fuelManager.add(40);
         break;
       case 'blue':
-        // Activate / refresh speed boost
         this._speedBoostActive = true;
         this._speedBoostRemainingMs = SPEED_BOOST_DURATION_MS;
         break;

@@ -49,7 +49,7 @@ const GEM_TYPES = {
 };
 
 /** Blue gem speed boost multiplier and duration */
-const SPEED_BOOST_MULTIPLIER = 3.3;
+const SPEED_BOOST_MULTIPLIER = 2;
 const SPEED_BOOST_DURATION_MS = 5000;
 
 /** Fuel reserve at the start of each session */
